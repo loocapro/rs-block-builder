@@ -2,6 +2,8 @@
 
 An EVM block builder based on reth components.
 
+**License:** Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
+
 ### Disclaimer
 
 **Use at your own risk.** Maintainers do not take responsibility for production use, block builder operation, or deployment decisions. This codebase has been used in production and has landed blocks on mainnet.
