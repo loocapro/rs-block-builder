@@ -1,0 +1,104 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "bin/builder", 
+    "crates/payload",
+    "crates/cli-args",
+    "crates/relay",
+    "crates/rpc",
+    "crates/consensus_layer", "crates/bundles",
+    "crates/tx-network", "crates/grpc"]
+
+default-members = [
+    "bin/builder",
+    ]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+incremental = false
+
+[workspace.dependencies]
+# reth
+reth = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6", features=["jemalloc", "asm-keccak"]}
+
+reth-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-rpc = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth.git",  tag = "v0.2.0-beta.6", features = ["ssz"] }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth.git", package = "reth-interfaces", tag = "v0.2.0-beta.6" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+reth-db = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6", features=["test-utils"] }
+reth-trie = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6"}
+reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git", tag = "v0.2.0-beta.6" }
+alloy-rlp = "0.3"
+alloy-core = "0.6.2"
+mev-share-sse = { version = "0.1.4", features = ["server"] } 
+
+ethers = { version = "2.0", features = ["ws"] }
+
+metrics = "0.21.1" # Needed for `metrics-macro` to resolve the crate using `::metrics` notation
+metrics-exporter-prometheus = "0.12.1"
+telegraf = "0.6.0"
+
+secp256k1 = { version = "0.28.0", features = ["rand-std"] }
+
+# async
+tokio = { version = "1.32.0", features = ["full"] }
+tokio-stream = "0.1.14"
+async-trait = "0.1.68"
+futures = "0.3"
+futures-util = "0.3.28"
+futures-core = "0.3"
+parking_lot = "0.12"
+
+# networking
+jsonrpsee = "0.22"
+reqwest = { version = "0.11.20", features =["json", "rustls-tls"]}
+url = "2.4.1"
+
+
+# Misc
+eyre = "0.6.8"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.17", features = ["json", "tracing-serde","env-filter", "fmt"] }
+serde_json = "1.0.106"
+hex = "0.4.3"
+serde = { version =  "1.0.188",  features = ["derive"] }
+serde_with = "3.3.0"
+serde_derive = "1.0.189"
+thiserror = "1.0.48"
+warp = "0.3.6"
+ruint = "1.10.1"
+chrono = { version = "0.4.31", features = ["serde"] }
+uuid = { version = "1.6.1", features = ["serde"] }
+tonic = "0.10.2"
+
+# Use system libffi on macOS aarch64 (avoids libffi-sys CFI build failure with Xcode 16+). See bin/builder.
+libffi-sys = { version = "2.3.0", features = ["system"] }
+
+# builder
+payload = { path = "./crates/payload" }
+tx-network = { path = "./crates/tx-network" }
+builder-primitives = { path = "./crates/primitives" }
+cli-args = { path = "./crates/cli-args" }
+rpc = { path = "./crates/rpc" }
+consensus_layer = { path = "./crates/consensus_layer" }
+relay = { path = "./crates/relay" }
+bundles = { path = "./crates/bundles" }
+grpc = { path = "./crates/grpc" }
+
+# Fix time 0.3.34 compile error with Rust 1.80+ ("type annotations needed for Box<_>" in time).
+# Requires network once: cargo update -p time
+[patch.crates-io]
+time = { git = "https://github.com/time-rs/time", tag = "v0.3.36" }
+
+

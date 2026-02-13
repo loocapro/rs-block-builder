@@ -1,0 +1,44 @@
+[package]
+name = "rpc"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# reth
+reth = { workspace = true }
+reth-rpc = { workspace = true }
+reth-db = { workspace = true }
+futures = { workspace = true }
+
+# networking
+jsonrpsee = { workspace = true }
+reqwest = { workspace = true }
+eyre = { workspace = true }
+
+# async
+async-trait = { workspace = true }
+tokio = { workspace = true }
+
+# misc
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+builder-primitives.workspace = true
+bundles.workspace = true
+reth-payload-builder = { workspace = true }
+thiserror = { workspace = true }
+
+reth-node-ethereum = { workspace = true }
+
+rand = "0.8.5"
+
+[dev-dependencies]
+secp256k1 = { workspace = true }
+
+
+

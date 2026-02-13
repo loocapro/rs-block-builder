@@ -1,0 +1,18 @@
+[package]
+name = "tx-network"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures-util = { workspace = true }
+reth  = { workspace = true }
+rpc.workspace = true
+eyre = { workspace = true }
+merkle-sdk = "0.0.5"
+ethers = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+

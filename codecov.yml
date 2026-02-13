@@ -1,0 +1,30 @@
+coverage:
+  status:
+    patch: off
+    project:
+      default:
+        threshold: null
+        informational: true
+github_checks:
+  annotations: false
+ignore:
+  - "devnet"
+  - "crates/payload/src/test_utils"
+  - "crates/payload/src/log.rs"
+  - "crates/relay/src/mev_boost_relay_server.rs"
+comment:
+  layout: "reach, files, components"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: false
+component_management:
+  individual_components:
+    - component_id: builder_binary
+      name: builder binary
+      paths:
+        - bin/builder/**
+    - component_id: payload
+      name: payload
+      paths:
+        - crates/payload/**

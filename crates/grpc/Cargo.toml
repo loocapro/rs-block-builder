@@ -1,0 +1,17 @@
+[package]
+name = "grpc"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tonic.workspace = true
+prost = "0.12.1"
+prost-types = "0.12.3"
+builder-primitives.workspace = true
+thiserror.workspace = true
+reth.workspace = true
+
+[build-dependencies]
+tonic-build = "0.10.2"
+prost-build = "0.12.1"
+prost-types = "0.12.3"

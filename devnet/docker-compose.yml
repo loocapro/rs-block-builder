@@ -1,0 +1,286 @@
+#.-.   .-..----..----. .-. .-..-.   .----.
+#|  `.'  || {_  | {}  }| |/ / | |   | {_
+#| |\ /| || {__ | .-. \| |\ \ | `--.| {__
+#`-' ` `-'`----'`-' `-'`-' `-'`----'`----'
+
+version: "3.9"
+
+volumes:
+  shared-data: {}
+
+services:
+  # #Creates a genesis state for the beacon chain using a YAML configuration file and
+  # # a deterministic set of 64 validators.
+  create-beacon-chain-genesis:
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:latest" # related to: https://github.com/OffchainLabs/eth-pos-devnet/issues/39
+    command:
+      - testnet
+      - generate-genesis
+      - --fork=deneb
+      - --num-validators=64
+      - --output-ssz=/consensus/genesis.ssz
+      - --chain-config-file=/consensus/config.yml
+      - --geth-genesis-json-out=/execution/genesis.json
+      - --geth-genesis-json-in=/execution/genesis.json
+    volumes:
+      - ./consensus:/consensus
+      - ./execution:/execution
+    restart: on-failure
+  # Runs a Prysm beacon chain from a specified genesis state created in the previous step
+  # and connects to go-ethereum in the same network as the execution client.
+  # The account used in go-ethereum is set as the suggested fee recipient for transactions
+  # proposed via the validators attached to the beacon node.
+  beacon-chain:
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:v5.0.2"
+    command:
+      - --datadir=/consensus/beacondata
+      - --min-sync-peers=1
+      - --genesis-state=/consensus/genesis.ssz
+      - --bootstrap-node=
+      - --interop-eth1data-votes
+      - --chain-config-file=/consensus/config.yml
+      - --contract-deployment-block=0
+      - --chain-id=${CHAIN_ID:-32382}
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --execution-endpoint=http://${URL}:8551
+      - --accept-terms-of-use
+      - --jwt-secret=/jwtsecret/jwt.hex
+      - --suggested-fee-recipient=0x123463a4b065722e99115d6c222f267d9cabb524
+      - --minimum-peers-per-subnet=0
+      - --p2p-tcp-port=4201
+      - --p2p-udp-port=4301
+      - --verbosity=info
+      - --enable-debug-rpc-endpoints
+      - --monitoring-port=4400
+      - --grpc-max-msg-size=104857600
+      - --p2p-static-id=true
+      - --http-mev-relay=http://mev-boost:18550
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+      mev-boost:
+        condition: service_started
+    ports:
+      - 4000:4000 # rpc
+      - 3500:3500 # rpc gateway
+      - 8080:8080 # metrics
+      - 4400:4400 # metrics
+      - 4201:4201 # metrics
+      - 4301:4301 # metrics
+      - 6060:6060 # prof http
+      - 9090:9090 # metrics
+    volumes:
+      - ./consensus:/consensus
+      - ./execution:/execution
+      - ./jwtsecret:/jwtsecret
+      - shared-data:/shared-data
+  # # # We run a validator client with 64, deterministically-generated keys that match
+  # # # The validator keys present in the beacon chain genesis state generated a few steps above.
+  validator:
+    image: "gcr.io/prysmaticlabs/prysm/validator:v5.0.2"
+    command:
+      - --beacon-rpc-provider=beacon-chain:4000
+      - --datadir=/consensus/validatordata
+      - --accept-terms-of-use
+      - --interop-num-validators=64
+      - --interop-start-index=0
+      - --chain-config-file=/consensus/config.yml
+      - --enable-builder
+      - --suggested-fee-recipient=0x123463a4b065722e99115d6c222f267d9cabb524
+      - --grpc-max-msg-size=104857600
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+    volumes:
+      - ./consensus:/consensus
+    # Sets up the genesis configuration for the go-ethereum client from a JSON file.
+  geth-genesis:
+    image: "ethereum/client-go:latest"
+    command: --datadir=/execution init /execution/genesis.json
+    volumes:
+      - ./execution:/execution
+      - ./execution/genesis.json:/execution/genesis.json
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+      geth-remove-db:
+        condition: service_completed_successfully
+    # Removes the database of the go-ethereum execution client to ensure we start from a clean state.
+  # (geth has a `removedb` option, but it asks for a keyboard confirmation, so we use this instead)
+  geth-remove-db:
+    image: "alpine:3.19.0"
+    command: rm -rf /execution/geth
+    volumes:
+      - ./execution:/execution
+  geth:
+    image: "ethereum/client-go:latest"
+    command:
+      - --networkid=${CHAIN_ID:-32382}
+      - --http
+      - --http.api=eth,net,web3,admin
+      - --http.addr=0.0.0.0
+      - --http.corsdomain=*
+      - --http.port=8555
+      - --port=8547
+      - --metrics.port=8548
+      - --ws
+      - --ws.api=eth,net,web3
+      - --ws.addr=0.0.0.0
+      - --ws.origins=*
+      - --ws.port=8549
+      - --authrpc.vhosts=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8550
+      - --authrpc.jwtsecret=/jwtsecret/jwt.hex
+      - --datadir=/execution
+      - --password=/execution/geth_password.txt
+      - --verbosity=3
+      - --syncmode=full
+      - --ipcdisable
+    ports:
+      - 30301:30301
+      - 8555:8555
+      - 8547:8547
+      - 8548:8548
+      - 8549:8549
+      - 8550:8550
+    depends_on:
+      geth-genesis:
+        condition: service_completed_successfully
+      beacon-chain:
+        condition: service_started
+    volumes:
+      - ./execution:/execution
+      - ./jwtsecret:/jwtsecret
+      - ./execution/geth_password.txt:/execution/geth_password.txt
+  beacon-chain-two:
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:v5.0.1"
+    entrypoint: ["/bin/bash", "-c"]
+    command: >
+      '
+      FILE_PATH="/shared-data/bootstrap_node.txt";
+        echo "Using FILE_PATH: $$FILE_PATH";
+        while [ ! -f "$$FILE_PATH" ]; do
+          echo "Waiting for bootstrap_node.txt to be available at $$FILE_PATH...";
+          sleep 1;
+        done;
+        echo "Found file, attempting to read...";
+        BOOTSTRAP_NODE=$$(cat "$$FILE_PATH");
+        echo "Read BOOTSTRAP_NODE: $$BOOTSTRAP_NODE";
+        if [ -z "$$BOOTSTRAP_NODE" ]; then
+          echo "Failed to read BOOTSTRAP_NODE from file or file is empty.";
+        else
+          echo "BOOTSTRAP_NODE is $$BOOTSTRAP_NODE";
+          exec ./beacon-chain --datadir=/consensus/beacondata-two --bootstrap-node="$$BOOTSTRAP_NODE" --min-sync-peers=1 --genesis-state=/consensus/genesis.ssz --interop-eth1data-votes --chain-config-file=/consensus/config.yml --contract-deployment-block=0 --chain-id=${CHAIN_ID:-32382} --rpc-host=0.0.0.0 --rpc-port=8990 --grpc-gateway-host=0.0.0.0 --grpc-gateway-port=8991 --execution-endpoint=http://geth:8550 --accept-terms-of-use --jwt-secret=/jwtsecret/jwt.hex --suggested-fee-recipient=0x4a0d16030f0e957792b5b33281c6db722c6fe8a4 --minimum-peers-per-subnet=0 --p2p-tcp-port=4200 --p2p-udp-port=4300 --monitoring-port=4401 --verbosity=info --enable-debug-rpc-endpoints  --grpc-max-msg-size=104857600 --p2p-static-id=true
+        fi'
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+      get-beacon-bootnode:
+        condition: service_completed_successfully
+      mev-boost:
+        condition: service_started
+    ports:
+      - "8990:8990" # rpc
+      - "8991:8991" # grpc
+      - "4200:4200" # tcp
+      - "4300:4300" # udp
+      - "4401:4401" # metrics
+    volumes:
+      - "./consensus:/consensus"
+      - "./execution:/execution"
+      - "./jwtsecret:/jwtsecret"
+      - "shared-data:/shared-data"
+  get-beacon-bootnode:
+    image: alpine
+    volumes:
+      - shared-data:/shared-data
+      - ./fetch-enr.sh:/fetch-enr.sh
+    entrypoint: /fetch-enr.sh
+    depends_on:
+      beacon-chain:
+        condition: service_started
+  validator-two:
+    image: "gcr.io/prysmaticlabs/prysm/validator:v5.0.1"
+    command:
+      - --beacon-rpc-provider=beacon-chain-two:8990
+      - --datadir=/consensus/validatordata-two
+      - --accept-terms-of-use
+      - --interop-num-validators=64
+      - --interop-start-index=1
+      - --chain-config-file=/consensus/config.yml
+      - --suggested-fee-recipient=0x4a0d16030f0e957792b5b33281c6db722c6fe8a4
+      - --grpc-max-msg-size=104857600
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+    volumes:
+      - ./consensus:/consensus
+
+  # Runs a golang tx fuzzer that generates random transactions and sends them to el
+  tx-fuzzer:
+    platform: linux/amd64
+    image: "ethpandaops/tx-fuzz:latest"
+    command: spam --rpc=http://${URL}:8545 --sk "REPLACE_ME"
+    # We restart it until it finds the EL up and running
+    restart: always
+    depends_on:
+      beacon-chain:
+        condition: service_started
+  mev-boost:
+    image: "flashbots/mev-boost:1.7"
+    restart: always
+    command:
+      - --relay=http://0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001@${URL}:9063?api_key=
+    environment:
+      GENESIS_FORK_VERSION: "0x20000089"
+      SKIP_RELAY_SIGNATURE_CHECK: 1
+      BOOST_LISTEN_ADDR: "0.0.0.0:18550"
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+    ports:
+      - 18550:18550
+
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    restart: always
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    depends_on:
+      - influxdb
+    links:
+      - influxdb
+    ports:
+      - "8125:8125"
+      - "8094:8094/udp"
+  influxdb:
+    image: influxdb:1.8-alpine
+    platform: linux/amd64
+    container_name: influxdb
+    restart: always
+    environment:
+      - INFLUXDB_DB=influx
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=admin
+    ports:
+      - "8086:8086"
+    depends_on:
+      validator:
+        condition: service_started
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-server
+    restart: always
+    depends_on:
+      - influxdb
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    links:
+      - influxdb
+    ports:
+      - "3000:3000"

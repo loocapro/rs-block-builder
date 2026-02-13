@@ -1,0 +1,112 @@
+#.-.   .-..----..----. .-. .-..-.   .----.
+#|  `.'  || {_  | {}  }| |/ / | |   | {_
+#| |\ /| || {__ | .-. \| |\ \ | `--.| {__
+#`-' ` `-'`----'`-' `-'`-' `-'`----'`----'
+
+version: "3.8"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "1m"
+    max-file: "1"
+    tag: "{{.Name}}"
+
+services:
+  prysm:
+    restart: unless-stopped
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:stable"
+    command:
+      - --datadir=/var/prysm
+      - --accept-terms-of-use
+      - --jwt-secret=/etc/jwt/jwtsecret/jwt.hex
+      - --execution-endpoint=http://reth-builder:8551
+      - --checkpoint-sync-url=https://mainnet.checkpoint.sigp.io
+      - --enable-debug-rpc-endpoints
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --monitoring-host=0.0.0.0
+    ports:
+      - 4000:4000/tcp # rpc
+      - 3500:3500/tcp # rest api
+      - 8080:8080/tcp # metrics
+      - 13000:13000/tcp # libp2p
+      - 12000:12000/udp # discv5
+    volumes:
+      - $HOME/.prysm/mainnet:/var/prysm
+      - ./jwtsecret:/etc/jwt/jwtsecret:ro
+    # Logging setup
+    container_name: builder-prysm
+    labels:
+      logging: "promtail"
+      logging_jobname: "containerlogs"
+    logging: *default-logging
+
+  reth-builder:
+    restart: unless-stopped
+    image: 350258789159.dkr.ecr.us-east-2.amazonaws.com/reth-builder:1.0.1
+    environment:
+      - RUST_LOG=reth::cli=debug,builder::service=debug,consensus_layer=debug,payload=debug,relay=debug,relay::client=off,mev_share_sse=debug,rpc-ext=info,bundle_pool=info
+        # tx-network=debug
+      - RUST_BACKTRACE=full
+    command: >
+      node
+      --chain mainnet
+      --datadir /var/reth
+      --metrics 0.0.0.0:9001
+      --log.file.directory /root/rethlogs
+      --authrpc.addr 0.0.0.0
+      --authrpc.port 8551
+      --authrpc.jwtsecret /etc/jwt/jwtsecret/jwt.hex
+      --http --http.addr 0.0.0.0 --http.port 80 --http.api eth-call-bundle
+      --rpc-max-connections 4294967295
+      --builder.cl-base-url http://prysm:3500
+      --builder.run-mode live
+      --builder.internal-relay-port 8008
+      --builder.bid-offset 2000
+      --builder.bid-monthly-subsidy-budget 10000000000
+      --builder.bid-market-share 0.01
+      --builder.bid-min-bid-surplus 1000000
+      --builder.bid-max-bid-surplus 4000000
+      --builder
+      --builder.enable-internal-relay
+      --builder.enable-tx-network
+      --builder.enable-rpc
+    ports:
+      - "9001:9001" # metrics
+      - "30303:30303" # p2p
+      - "8545:8545" # rpc
+      - "8551:8551" # engine
+      - "80:80" # http
+      - "8504:8504" # ws
+      - "8008:8008" # internal relay
+    volumes:
+      - $HOME/.local/share/reth/mainnet:/var/reth
+      - ./jwtsecret:/etc/jwt/jwtsecret:ro
+      - /var/log/reth:/root/rethlogs
+    # Logging setup
+    container_name: builder-node
+    labels:
+      logging: "promtail"
+      logging_jobname: "containerlogs"
+    logging: *default-logging
+
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    restart: on-failure
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    ports:
+      - "8094:8094/udp"
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: builder-promtail
+    volumes:
+      - ./promtail.yaml:/etc/promtail/docker-config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/docker-config.yaml
+    labels:
+      logging: "promtail"
+      logging_jobname: "containerlogs"
+    logging: *default-logging

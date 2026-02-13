@@ -1,0 +1,43 @@
+[package]
+name = "builder-primitives"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# Optional feature for arbitrary (fuzz) impls in blst macros
+arbitrary = []
+
+[dependencies]
+ethereum_ssz = "0.5"
+ethereum_ssz_derive = "0.5"
+tree_hash = "0.5"
+tree_hash_derive = "0.5"
+reth = { workspace = true }
+reth-rpc-types = { workspace = true }
+serde = { workspace = true }
+serde_with = { workspace = true }
+serde_derive = { workspace = true }
+uuid = { workspace = true }
+secp256k1 = { workspace = true }
+url = { workspace = true }
+reth-payload-builder = { workspace = true }
+reth-node-api = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+ethereum_serde_utils = "0.5"
+blst = { version = "0.3.3" }
+rand = "0.8.5"
+lazy_static = "1.4.0"
+futures-util = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+
+ethers = { workspace = true }
+

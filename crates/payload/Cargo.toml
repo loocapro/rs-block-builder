@@ -1,0 +1,50 @@
+[package]
+name = "payload"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# crates
+consensus_layer.workspace = true
+relay.workspace = true
+bundles.workspace = true
+cli-args.workspace = true
+builder-primitives.workspace = true
+
+# reth
+reth = { workspace = true }
+reth-payload-builder = { workspace = true }
+reth-node-api = { workspace = true }
+reth-metrics = { workspace = true }
+alloy-rlp = { workspace = true}
+reth-revm = { workspace = true}
+reth-interfaces = { workspace = true }
+reth-trie = { workspace = true }
+lazy_static = "1.4.0"
+reth-basic-payload-builder = { workspace = true }
+
+
+secp256k1 = { workspace = true }
+
+# revm
+revm = { version = "8.0.0", features = ["std", "secp256k1"], default-features = false }
+revm-primitives = { version = "3.1.0", features = ["std"], default-features = false }
+
+ethers = { workspace = true }
+
+# async
+futures-core = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures-util = { workspace = true }
+
+# Misc
+thiserror = { workspace = true }
+tracing = { workspace = true }
+metrics = { workspace = true }
+
+[dev-dependencies]
+reth-db = { workspace = true }
